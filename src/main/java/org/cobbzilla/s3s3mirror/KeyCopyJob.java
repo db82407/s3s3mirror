@@ -20,8 +20,18 @@ public class KeyCopyJob extends KeyJob {
 
         keydest = summary.getKey();
         final MirrorOptions options = context.getOptions();
+        
+        boolean filePrefix = options.getPrefix().startsWith("file:");
+        
         if (options.hasDestPrefix()) {
-            keydest = keydest.substring(options.getPrefixLength());
+        	if (filePrefix) {
+        		if (!options.getDestPrefix().endsWith("/")) {
+        			keydest = "/" + keydest;
+        		}
+        	}
+        	else {
+				keydest = keydest.substring(options.getPrefixLength());
+        	}
             keydest = options.getDestPrefix() + keydest;
         }
     }

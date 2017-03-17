@@ -7,6 +7,13 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -21,18 +28,42 @@ public class KeyLister implements Runnable {
     private final List<S3ObjectSummary> summaries;
     private final AtomicBoolean done = new AtomicBoolean(false);
     private ObjectListing listing;
+    
+    private final String bucket;
+	private final MirrorOptions options;
+	private final int fetchSize;
+    private BufferedReader reader;
+    private long count = 0;
+    private long total = 0;
 
     public boolean isDone () { return done.get(); }
 
     public KeyLister(AmazonS3Client client, MirrorContext context, int maxQueueCapacity, String bucket, String prefix) {
+        this.bucket = bucket;
         this.client = client;
         this.context = context;
         this.maxQueueCapacity = maxQueueCapacity;
 
-        final MirrorOptions options = context.getOptions();
-        int fetchSize = options.getMaxThreads();
+		this.options = this.context.getOptions();
+        this.fetchSize = options.getMaxThreads();
         this.summaries = new ArrayList<S3ObjectSummary>(10*fetchSize);
-
+        
+        if (prefix.startsWith("file:")) {
+        	try {
+				URI uri = URI.create(prefix);
+				total = Files.lines(Paths.get(uri)).count();
+				reader = new BufferedReader(new FileReader(new File(uri)));
+				prefix = reader.readLine();
+        	}
+        	catch (IOException e) {
+        		throw new RuntimeException(e);
+        	}
+        }
+        newListing(prefix);
+    }
+    
+    private void newListing(String prefix) {
+		System.out.print(String.format("\r%d/%d %s/%s", ++count, total, bucket, prefix));
         final ListObjectsRequest request = new ListObjectsRequest(bucket, prefix, null, null, fetchSize);
         listing = s3getFirstBatch(client, request);
         synchronized (summaries) {
@@ -63,8 +94,20 @@ public class KeyLister implements Runnable {
                         }
 
                     } else {
-                        log.info("No more keys found in source bucket, exiting");
-                        return;
+                    	if (reader != null) {
+                    		String prefix = reader.readLine();
+                    		if (prefix == null) {
+                    			reader.close();
+                    			reader = null;
+                    		}
+                    		else {
+                    			newListing(prefix);
+                    		}
+                    	}
+                    	if (reader == null) {
+							log.info("No more keys found in source bucket, exiting");
+							return;
+                    	}
                     }
                 }
                 try {
