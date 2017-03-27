@@ -64,6 +64,11 @@ public class KeyLister implements Runnable {
         newListing(prefix);
     }
     
+    private void abort(String msg) {
+		System.err.println("\nABORT: " + msg);
+		System.exit(2);
+    }
+    
     private void newListing(String prefix) {
 		System.out.print(String.format("\r%d/%d %s/%s", ++count, total, bucket, prefix));
         final ListObjectsRequest request = new ListObjectsRequest(bucket, prefix, null, null, fetchSize);
@@ -74,6 +79,9 @@ public class KeyLister implements Runnable {
             context.getStats().objectsRead.addAndGet(objectSummaries.size());
             context.getStats().prefix2count.put(prefix, new AtomicInteger(objectSummaries.size()));
             if (options.isVerbose()) log.info("added initial set of "+objectSummaries.size()+" keys");
+            if (objectSummaries.isEmpty()) {
+            	throw new IllegalArgumentException("ERROR: prefix empty: " + prefix);
+            }
         }
     	this.prefix = prefix;
     }
@@ -124,7 +132,7 @@ public class KeyLister implements Runnable {
             }
         } catch (Exception e) {
             log.error("Error in run loop, KeyLister thread now exiting: "+e);
-
+            abort(e.toString());
         } finally {
             if (verbose) log.info("KeyLister run loop finished");
             done.set(true);
