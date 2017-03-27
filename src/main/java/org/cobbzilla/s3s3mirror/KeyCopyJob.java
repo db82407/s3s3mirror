@@ -14,6 +14,7 @@ import java.util.Date;
 public class KeyCopyJob extends KeyJob {
 
     protected String keydest;
+    private String prefix;
 
     public KeyCopyJob(AmazonS3Client client, MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
         super(client, context, summary, notifyLock);
@@ -25,6 +26,7 @@ public class KeyCopyJob extends KeyJob {
         
         if (options.hasDestPrefix()) {
         	if (filePrefix) {
+        		prefix = keydest.replaceFirst("/[^/]*$", "");
         		if (!options.getDestPrefix().endsWith("/")) {
         			keydest = "/" + keydest;
         		}
@@ -43,7 +45,12 @@ public class KeyCopyJob extends KeyJob {
         final MirrorOptions options = context.getOptions();
         final String key = summary.getKey();
         try {
-            if (!shouldTransfer()) return;
+            if (!shouldTransfer()) {
+				if (prefix != null) {
+					context.getStats().prefix2count.get(prefix).decrementAndGet();
+				}
+            	return;
+            }
             final ObjectMetadata sourceMetadata = getObjectMetadata(options.getSourceBucket(), key, options);
             final AccessControlList objectAcl = getAccessControlList(options, key);
 
@@ -52,13 +59,15 @@ public class KeyCopyJob extends KeyJob {
             } else {
                 if (keyCopied(sourceMetadata, objectAcl)) {
                     context.getStats().objectsCopied.incrementAndGet();
+                    if (prefix != null) {
+						context.getStats().prefix2count.get(prefix).decrementAndGet();
+                    }
                 } else {
                     context.getStats().copyErrors.incrementAndGet();
                 }
             }
         } catch (Exception e) {
             log.error("error copying key: " + key + ": " + e);
-
         } finally {
             synchronized (notifyLock) {
                 notifyLock.notifyAll();

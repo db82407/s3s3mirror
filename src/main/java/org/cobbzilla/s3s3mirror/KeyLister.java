@@ -17,6 +17,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 public class KeyLister implements Runnable {
@@ -35,6 +36,7 @@ public class KeyLister implements Runnable {
     private BufferedReader reader;
     private long count = 0;
     private long total = 0;
+    private String prefix;
 
     public boolean isDone () { return done.get(); }
 
@@ -70,8 +72,10 @@ public class KeyLister implements Runnable {
             final List<S3ObjectSummary> objectSummaries = listing.getObjectSummaries();
             summaries.addAll(objectSummaries);
             context.getStats().objectsRead.addAndGet(objectSummaries.size());
+            context.getStats().prefix2count.put(prefix, new AtomicInteger(objectSummaries.size()));
             if (options.isVerbose()) log.info("added initial set of "+objectSummaries.size()+" keys");
         }
+    	this.prefix = prefix;
     }
 
     @Override
@@ -90,6 +94,7 @@ public class KeyLister implements Runnable {
                             final List<S3ObjectSummary> objectSummaries = listing.getObjectSummaries();
                             summaries.addAll(objectSummaries);
                             context.getStats().objectsRead.addAndGet(objectSummaries.size());
+							context.getStats().prefix2count.get(prefix).addAndGet(objectSummaries.size());
                             if (verbose) log.info("queued next set of "+objectSummaries.size()+" keys (total now="+getSize()+")");
                         }
 

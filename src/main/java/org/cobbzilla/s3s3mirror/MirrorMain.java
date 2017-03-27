@@ -14,6 +14,11 @@ import org.kohsuke.args4j.CmdLineParser;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.net.URI;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Provides the "main" method. Responsible for parsing options and setting up the MirrorMaster to manage the copy.
@@ -63,9 +68,41 @@ public class MirrorMain {
             context = new MirrorContext(options);
             master = new MirrorMaster(client, context);
 
-            Runtime.getRuntime().addShutdownHook(context.getStats().getShutdownHook());
+            Runtime.getRuntime().addShutdownHook(onShutdown(options.getPrefix()));
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
         }
+    }
+    
+    private Thread onShutdown(final String prefix) {
+
+		return new Thread() {
+			@Override public void run() {
+				context.getStats().logStats();
+
+		        if (prefix.startsWith("file:")) {
+		        	try {
+						URI uri = URI.create(prefix + ".ok");
+						FileWriter writer = new FileWriter(new File(uri), true);
+
+						for (Map.Entry<String, AtomicInteger> entry : context.getStats().prefix2count.entrySet()) {
+							String prefix = entry.getKey();
+							int count = entry.getValue().get();
+							if (count == 0) {
+								writer.write(prefix +"\n", 0, prefix.length() + 1);
+							}
+							else {
+								System.err.println("INCOMPLETE " + count + " " + prefix);
+							}
+						}
+						writer.close();
+						System.out.println("Created " + uri);
+		        	}
+		        	catch (IOException e) {
+		        		throw new RuntimeException(e);
+		        	}
+		        }	
+			}
+		};
     }
 
     protected AmazonS3Client getAmazonS3Client() {

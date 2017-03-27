@@ -3,17 +3,16 @@ package org.cobbzilla.s3s3mirror;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.cobbzilla.s3s3mirror.MirrorConstants.*;
 
 @Slf4j
 public class MirrorStats {
-
-    @Getter private final Thread shutdownHook = new Thread() {
-        @Override public void run() { logStats(); }
-    };
 
     private static final String BANNER = "\n--------------------------------------------------------------------\n";
     public void logStats() {
@@ -32,6 +31,8 @@ public class MirrorStats {
     public final AtomicLong s3deleteCount = new AtomicLong(0);
     public final AtomicLong s3getCount = new AtomicLong(0);
     public final AtomicLong bytesCopied = new AtomicLong(0);
+    
+    public final Map<String, AtomicInteger> prefix2count = new ConcurrentHashMap<String, AtomicInteger>();
 
     public static final long HOUR = TimeUnit.HOURS.toMillis(1);
     public static final long MINUTE = TimeUnit.MINUTES.toMillis(1);
