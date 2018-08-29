@@ -29,7 +29,7 @@ public class KeyLister implements Runnable {
     private final List<S3ObjectSummary> summaries;
     private final AtomicBoolean done = new AtomicBoolean(false);
     private ObjectListing listing;
-    
+
     private final String bucket;
 	private final MirrorOptions options;
 	private final int fetchSize;
@@ -49,41 +49,55 @@ public class KeyLister implements Runnable {
 		this.options = this.context.getOptions();
         this.fetchSize = options.getMaxThreads();
         this.summaries = new ArrayList<S3ObjectSummary>(10*fetchSize);
-        
+
         if (prefix.startsWith("file:")) {
         	try {
 				URI uri = URI.create(prefix);
 				total = Files.lines(Paths.get(uri)).count();
 				reader = new BufferedReader(new FileReader(new File(uri)));
-				prefix = reader.readLine();
+
+				while ((prefix = reader.readLine()) != null) {
+                    if (newListing(prefix))
+                        break;
+                }
         	}
         	catch (IOException e) {
         		throw new RuntimeException(e);
         	}
         }
-        newListing(prefix);
+        else {
+            newListing(prefix);
+        }
     }
-    
+
     private void abort(String msg) {
 		System.err.println("\nABORT: " + msg);
 		System.exit(2);
     }
-    
-    private void newListing(String prefix) {
+
+    private boolean newListing(String prefix) {
 		System.out.print(String.format("\r%d/%d %s/%s", ++count, total, bucket, prefix));
+
         final ListObjectsRequest request = new ListObjectsRequest(bucket, prefix, null, null, fetchSize);
         listing = s3getFirstBatch(client, request);
+
         synchronized (summaries) {
             final List<S3ObjectSummary> objectSummaries = listing.getObjectSummaries();
             summaries.addAll(objectSummaries);
             context.getStats().objectsRead.addAndGet(objectSummaries.size());
             context.getStats().prefix2count.put(prefix, new AtomicInteger(objectSummaries.size()));
-            if (options.isVerbose()) log.info("added initial set of "+objectSummaries.size()+" keys");
+
+            if (options.isVerbose()) log.info("\nAdded initial set of "+objectSummaries.size()+" keys");
+
             if (objectSummaries.isEmpty()) {
-            	throw new IllegalArgumentException("ERROR: prefix empty: " + prefix);
+                log.warn("\nEmpty directory: " + prefix);
+            	// throw new IllegalArgumentException("ERROR: prefix empty: " + prefix);
+                this.prefix = null;
+                return false;
             }
         }
     	this.prefix = prefix;
+        return true;
     }
 
     @Override
@@ -107,19 +121,24 @@ public class KeyLister implements Runnable {
                         }
 
                     } else {
-                    	if (reader != null) {
+                    	while (reader != null) {
                     		String prefix = reader.readLine();
                     		if (prefix == null) {
                     			reader.close();
                     			reader = null;
                     		}
                     		else {
-                    			newListing(prefix);
+                    			if (newListing(prefix))
+                    			    break;
                     		}
                     	}
                     	if (reader == null) {
-							log.info("No more keys found in source bucket, exiting");
-							return;
+							log.info("No more keys found in source bucket, KeyLister thread exiting");
+                            String progress = MirrorMain.progress(context);
+                            if (!progress.isEmpty()) {
+                                log.info("The following jobs are still running: \n" + progress);
+                            }
+                            return;
                     	}
                     }
                 }

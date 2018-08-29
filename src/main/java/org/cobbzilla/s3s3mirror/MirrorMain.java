@@ -13,11 +13,13 @@ import org.kohsuke.args4j.CmdLineParser;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URI;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -68,11 +70,38 @@ public class MirrorMain {
             context = new MirrorContext(options);
             master = new MirrorMaster(client, context);
 
+            String prefix = options.getPrefix();
+            if (prefix.startsWith("file:")) {
+                try {
+                    URI uri = URI.create(prefix + ".md5");
+                    FileReader reader = new FileReader(new File(uri));
+                    Properties props = context.getProperties();
+                    props.load(reader);
+                    reader.close();
+                } catch (FileNotFoundException e) {
+                    // ignore
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
             Runtime.getRuntime().addShutdownHook(onShutdown(options.getPrefix()));
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
         }
     }
-    
+
+    public static String progress(MirrorContext context) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, AtomicInteger> entry : context.getStats().prefix2count.entrySet()) {
+            String prefix = entry.getKey();
+            int count = entry.getValue().get();
+            if (count != 0) {
+                sb.append(String.format("%2d %s\n", count, prefix));
+            }
+        }
+        return sb.toString();
+    }
+
     private Thread onShutdown(final String prefix) {
 
 		return new Thread() {
@@ -96,11 +125,17 @@ public class MirrorMain {
 						}
 						writer.close();
 						System.out.println("Created " + uri);
+
+                        uri = URI.create(prefix + ".md5");
+                        writer = new FileWriter(new File(uri));
+                        Properties props = context.getProperties();
+                        props.store(writer, "MD5 checksums");
+                        writer.close();
 		        	}
 		        	catch (IOException e) {
 		        		throw new RuntimeException(e);
 		        	}
-		        }	
+		        }
 			}
 		};
     }
@@ -123,17 +158,17 @@ public class MirrorMain {
             client = new AmazonS3Client(new InstanceProfileCredentialsProvider(), clientConfiguration);
         } else {
             throw new IllegalStateException("No authenication method available, please specify IAM Role usage or AWS key and secret");
-        }        
+        }
         if (options.hasEndpoint()) client.setEndpoint(options.getEndpoint());
         return client;
     }
 
     protected void parseArguments() throws Exception {
         parser.parseArgument(args);
-        
+
         // for credentials, check for IAM role usage if not then...
         // try the .aws/config file first if there is a profile specified, otherwise defer to
-        // .s3cfg before using the default .aws/config credentials 
+        // .s3cfg before using the default .aws/config credentials
         // (this may attempt .aws/config twice for no reason, but maintains backward compatibility)
         if (options.isUseIamRole() == false) {
             if (!options.hasAwsKeys() && options.getProfile() != null) loadAwsKeysFromAwsConfig();
@@ -203,7 +238,7 @@ public class MirrorMain {
             // ignore - let other credential-discovery processes have a crack
         }
     }
-    
+
     private void loadAwsKeysFromAwsCredentials() {
         try {
             // try to load from ~/.aws/config
