@@ -38,7 +38,7 @@ public abstract class KeyMaster implements Runnable {
     protected abstract String getPrefix(MirrorOptions options);
     protected abstract String getBucket(MirrorOptions options);
 
-    protected abstract KeyJob getTask(S3ObjectSummary summary);
+    protected abstract Runnable getTask(S3ObjectSummary summary);
 
     public void start () {
         this.thread = new Thread(this);
@@ -97,8 +97,11 @@ public abstract class KeyMaster implements Runnable {
                             return;
                         }
                     }
-                    executorService.submit(getTask(summary));
-                    counter++;
+                    Runnable task = getTask(summary);
+                    if (task != null) {
+                        executorService.submit(task);
+                        counter++;
+                    }
                 }
 
                 summaries = lister.getNextBatch();

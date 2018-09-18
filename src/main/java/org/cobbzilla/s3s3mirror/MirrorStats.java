@@ -31,12 +31,21 @@ public class MirrorStats {
     public final AtomicLong s3deleteCount = new AtomicLong(0);
     public final AtomicLong s3getCount = new AtomicLong(0);
     public final AtomicLong bytesCopied = new AtomicLong(0);
-    
-    public final Map<String, AtomicInteger> prefix2count = new ConcurrentHashMap<String, AtomicInteger>();
 
     public static final long HOUR = TimeUnit.HOURS.toMillis(1);
     public static final long MINUTE = TimeUnit.MINUTES.toMillis(1);
     public static final long SECOND = TimeUnit.SECONDS.toMillis(1);
+
+    public final Map<String, AtomicInteger> prefix2count = new ConcurrentHashMap<String, AtomicInteger>();
+
+    public void decPrefixCount(String prefix) {
+        if (prefix != null) {
+            AtomicInteger count = prefix2count.get(prefix);
+            if (count != null) {
+                count.decrementAndGet();
+            }
+        }
+    }
 
     public String toString () {
         final long durationMillis = System.currentTimeMillis() - start;

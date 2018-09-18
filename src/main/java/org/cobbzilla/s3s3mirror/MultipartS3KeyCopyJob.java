@@ -8,14 +8,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-public class MultipartKeyCopyJob extends KeyCopyJob {
+public class MultipartS3KeyCopyJob extends S3KeyCopyJob {
 
-    public MultipartKeyCopyJob(AmazonS3Client client, MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
+    public MultipartS3KeyCopyJob(AmazonS3Client client, MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
         super(client, context, summary, notifyLock);
     }
 
     @Override
-    boolean keyCopied(ObjectMetadata sourceMetadata, AccessControlList objectAcl) {
+    protected boolean keyCopied(ObjectMetadata sourceMetadata, AccessControlList objectAcl) {
         long objectSize = summary.getSize();
         MirrorOptions options = context.getOptions();
         String sourceBucketName = options.getSourceBucket();
@@ -93,7 +93,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
     }
 
     @Override
-    boolean objectChanged(ObjectMetadata metadata) {
-        return summary.getSize() != metadata.getContentLength();
+    protected boolean objectChanged(ObjectMetadata dsnMetadata) {
+        return summary.getSize() != dsnMetadata.getContentLength();
     }
 }

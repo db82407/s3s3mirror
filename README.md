@@ -14,6 +14,18 @@ When copying, the source metadata and ACL lists are also copied to the destinati
 
 Note: [the 2.0-stable branch](https://github.com/cobbzilla/s3s3mirror/tree/2.0-stable) supports copying to/from local directories.
 
+### db82407 modifications
+
+I needed this to be interruptable/restartable for huge uploads. I've also added the ability to copy to Google Cloud Storage.
+
+If DestBucket starts with *gs://* it copies to Google. You need to export GOOGLE_APPLICATION_CREDENTIALS=path-to-your-cred.json
+
+Added the folllwing options:
+
+* **--prefix-file** read prefixes from file, rather than recursing through whole bucket. On exit a prefix file with ".ok" appended is written containing a line for each fully copied prefix.
+* **--fix-etags** AWS Etags containing "-" are NOT MD5 checksums. This option fixes these Etags by copying object to itself.
+* **--check-meta** compare metadata when determining whether to copy.
+
 ### Motivation
 
 I started with "s3cmd sync" but found that with buckets containing many thousands of objects, it was incredibly slow

@@ -11,6 +11,5 @@ public class MirrorContext {
 
     @Getter @Setter private MirrorOptions options;
     @Getter private final MirrorStats stats = new MirrorStats();
-    @Getter private final Properties properties = new Properties();
 
 }

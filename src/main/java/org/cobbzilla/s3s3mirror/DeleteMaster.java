@@ -19,7 +19,7 @@ public class DeleteMaster extends KeyMaster {
     protected String getBucket(MirrorOptions options) { return options.getDestinationBucket(); }
 
     @Override
-    protected KeyJob getTask(S3ObjectSummary summary) {
+    protected Runnable getTask(S3ObjectSummary summary) {
         return new KeyDeleteJob(client, context, summary, notifyLock);
     }
 }
