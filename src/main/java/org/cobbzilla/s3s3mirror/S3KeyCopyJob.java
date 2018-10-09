@@ -37,7 +37,7 @@ public class S3KeyCopyJob extends KeyJob {
 
         if (options.hasPrefixFile()) {
             // prefix is dirname of current file
-            prefix = keydest.replaceFirst("/[^/]*$", "");
+            prefix = key.replaceFirst("/[^/]*$", "");
         } else {
             prefix = null;
         }
